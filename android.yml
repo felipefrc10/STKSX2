@@ -1,0 +1,90 @@
+name: Build STKSX2 Android APK
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stksx2-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ANDROID_NDK_VERSION: '29.0.14206865'
+      ANDROID_CMAKE_VERSION: '3.31.1'
+    steps:
+      - name: Checkout STKSX2 wrapper
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install upstream-compatible Android NDK and CMake
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}" "cmake;${ANDROID_CMAKE_VERSION}"
+
+      - name: Fetch Play! source and all submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/jpd002/Play-.git upstream/Play-
+          git -C upstream/Play- rev-parse HEAD | tee upstream-play-commit.txt
+          git -C upstream/Play- fetch --tags --force
+
+      - name: Apply STKSX2 launcher branding
+        run: python3 scripts/brand_upstream.py upstream/Play-
+
+      - name: Build installable debug APK and release APK
+        shell: bash
+        working-directory: upstream/Play-/build_android
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --stacktrace assembleDebug assembleRelease
+
+      - name: Verify APK output
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_APK=$(find upstream/Play-/build_android/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)
+          test -n "$RELEASE_APK"
+          test -s "$RELEASE_APK"
+          echo "Release APK generated: $RELEASE_APK"
+          find upstream/Play-/build_android/build/outputs/apk -type f -name '*.apk' -printf '%p (%s bytes)\n' 
+
+      - name: Package build information
+        shell: bash
+        run: |
+          {
+            echo "STKSX2 build"
+            echo "Wrapper commit: $GITHUB_SHA"
+            echo "Upstream Play! commit: $(cat upstream-play-commit.txt)"
+            echo "Built at UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "Note: based on upstream Play!; this is not a PCSX2/AetherSX2 port."
+          } > upstream/Play-/build_android/build-info.txt
+
+      - name: Upload release APK (unsigned unless separately signed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: STKSX2-Android-release-unsigned
+          path: |
+            upstream/Play-/build_android/build/outputs/apk/release/*.apk
+            upstream/Play-/build_android/build-info.txt
+          if-no-files-found: error
+          retention-days: 30
