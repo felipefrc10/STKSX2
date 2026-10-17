@@ -61,15 +61,27 @@ jobs:
           set -euo pipefail
           ./gradlew --no-daemon --stacktrace assembleDebug assembleRelease
 
-      - name: Verify APK output
+      - name: Verify installable debug APK and release APK
         shell: bash
         run: |
           set -euo pipefail
+          DEBUG_APK=$(find upstream/Play-/build_android/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)
           RELEASE_APK=$(find upstream/Play-/build_android/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)
+          test -n "$DEBUG_APK"
+          test -s "$DEBUG_APK"
           test -n "$RELEASE_APK"
           test -s "$RELEASE_APK"
-          echo "Release APK generated: $RELEASE_APK"
-          find upstream/Play-/build_android/build/outputs/apk -type f -name '*.apk' -printf '%p (%s bytes)\n' 
+          echo "Installable debug APK (signed with Android debug key): $DEBUG_APK"
+          echo "Release APK (may be unsigned): $RELEASE_APK"
+          find upstream/Play-/build_android/build/outputs/apk -type f -name '*.apk' -printf '%p (%s bytes)\n'
+
+      - name: Upload installable debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: STKSX2-Android-debug-installable
+          path: upstream/Play-/build_android/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Package build information
         shell: bash
