@@ -22,7 +22,7 @@ jobs:
     env:
       ANDROID_NDK_VERSION: '29.0.14206865'
       ANDROID_CMAKE_VERSION: '3.31.6'
-      ANDROID_COMPILE_SDK: '37'
+      ANDROID_COMPILE_SDK: '36'
       ANDROID_BUILD_TOOLS: '36.0.0'
     steps:
       - name: Checkout STKSX2 wrapper
@@ -70,9 +70,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # API 37 is required by the current AndroidX dependencies. Try the
-          # preview channel as well because the package may not be in stable.
-          sdkmanager --channel=3 --install "platforms;android-${ANDROID_COMPILE_SDK}"
+          # Use the published stable Android API 36 platform. The upstream
+          # Gradle files are patched below to use AndroidX versions compatible with API 36.
+          sdkmanager --install "platforms;android-${ANDROID_COMPILE_SDK}"
           sdkmanager --install \
             "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK_VERSION}" \
@@ -89,8 +89,40 @@ jobs:
           git clone --recurse-submodules https://github.com/ARMSX2/ARMSX2.git upstream/ARMSX2
           git -C upstream/ARMSX2 rev-parse HEAD | tee upstream-armsx2-commit.txt
           git -C upstream/ARMSX2 submodule status --recursive
-          # Keep upstream compileSdk/targetSdk unchanged; AndroidX 1.19.0
-          # requires compileSdk 37 or later.
+          # The current upstream Android branch requests API 37, which is not
+          # available from this runner's SDK repository. Apply the compatibility
+          # patch in the next step rather than failing during SDK installation.
+
+      - name: Patch Android SDK and AndroidX versions for stable API 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          app = Path("upstream/ARMSX2/platforms/android/app/build.gradle.kts")
+          catalog = Path("upstream/ARMSX2/platforms/android/gradle/libs.versions.toml")
+          if not app.is_file() or not catalog.is_file():
+              raise SystemExit("Could not find expected ARMSX2 Gradle files; upstream layout changed.")
+          app_text = app.read_text()
+          if "compileSdk = 37" not in app_text or "targetSdk = 37" not in app_text:
+              raise SystemExit("Expected compileSdk/targetSdk 37 declarations were not found; refusing an unsafe patch.")
+          app_text = app_text.replace("compileSdk = 37", "compileSdk = 36", 1)
+          app_text = app_text.replace("targetSdk = 37", "targetSdk = 36", 1)
+          app.write_text(app_text)
+          catalog_text = catalog.read_text()
+          replacements = {
+              'coreKtx = "1.19.0"': 'coreKtx = "1.18.0"',
+              'lifecycle = "2.11.0"': 'lifecycle = "2.10.0"',
+          }
+          for old, new in replacements.items():
+              if old not in catalog_text:
+                  raise SystemExit(f"Expected dependency version not found: {old}")
+              catalog_text = catalog_text.replace(old, new, 1)
+          catalog.write_text(catalog_text)
+          print("Patched compileSdk/targetSdk to 36, core-ktx to 1.18.0 and lifecycle to 2.10.0")
+          PYCODE
+          grep -E 'compileSdk =|targetSdk =' upstream/ARMSX2/platforms/android/app/build.gradle.kts
+          grep -E 'coreKtx =|lifecycle =' upstream/ARMSX2/platforms/android/gradle/libs.versions.toml
 
       - name: Fetch existing Play! launcher icon assets
         shell: bash
