@@ -22,6 +22,8 @@ jobs:
     env:
       ANDROID_NDK_VERSION: '29.0.14206865'
       ANDROID_CMAKE_VERSION: '3.31.6'
+      ANDROID_COMPILE_SDK: '36'
+      ANDROID_BUILD_TOOLS: '36.0.0'
     steps:
       - name: Checkout STKSX2 wrapper
         uses: actions/checkout@v4
@@ -39,19 +41,25 @@ jobs:
           packages: |
             platform-tools
 
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+
       - name: Install Android SDK, NDK and CMake
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --install \
-            "platforms;android-37" \
-            "build-tools;37.0.0" \
+          sdkmanager --install \
+            "platforms;android-${ANDROID_COMPILE_SDK}" \
+            "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK_VERSION}" \
-            "cmake;${ANDROID_CMAKE_VERSION}" >/dev/null || true
+            "cmake;${ANDROID_CMAKE_VERSION}"
           sdkmanager --list_installed | grep -F "ndk;${ANDROID_NDK_VERSION}"
           sdkmanager --list_installed | grep -F "cmake;${ANDROID_CMAKE_VERSION}"
-          sdkmanager --list_installed | grep -F 'platforms;android-37'
-          sdkmanager --list_installed | grep -F 'build-tools;37.0.0'
+          sdkmanager --list_installed | grep -F "platforms;android-${ANDROID_COMPILE_SDK}"
+          sdkmanager --list_installed | grep -F "build-tools;${ANDROID_BUILD_TOOLS}"
 
       - name: Fetch ARMSX2 and its submodules
         shell: bash
@@ -60,6 +68,16 @@ jobs:
           git clone --recurse-submodules https://github.com/ARMSX2/ARMSX2.git upstream/ARMSX2
           git -C upstream/ARMSX2 rev-parse HEAD | tee upstream-armsx2-commit.txt
           git -C upstream/ARMSX2 submodule status --recursive
+          # The current upstream requests API 37, which is not available in the
+          # stable SDK channel on GitHub-hosted runners. Build against API 36 instead.
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p = Path("upstream/ARMSX2/platforms/android/app/build.gradle.kts")
+          s = p.read_text()
+          if "compileSdk = 37" not in s or "targetSdk = 37" not in s:
+              raise SystemExit("Expected upstream compileSdk/targetSdk 37 settings were not found; review the upstream build file.")
+          p.write_text(s.replace("compileSdk = 37", "compileSdk = 36", 1).replace("targetSdk = 37", "targetSdk = 36", 1))
+          PYCODE
 
       - name: Fetch existing Play! launcher icon assets
         shell: bash
