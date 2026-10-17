@@ -1,41 +1,44 @@
-# STKSX2 — pacote de compilação Android
+# STKSX2 Alpha 1 — build Android com base ARMSX2/PCSX2
 
-**Estado real:** este repositório é um invólucro de compilação que baixa o código-fonte aberto do emulador **Play!** e tenta gerar um APK com referências de interface/nome **STKSX2** (o pacote interno permanece o original upstream). Não é um núcleo de PS2 escrito do zero nem uma versão do PCSX2/AetherSX2. A compilação remota ainda precisa ser executada no GitHub Actions para confirmar o resultado.
+## O que esta adaptação faz
 
-## O que está incluído
+O workflow ativo é `.github/workflows/android.yml`. Ele baixa o código do ARMSX2 com submódulos, instala as dependências Android, prepara o nome visível `STKSX2`, reaproveita os PNGs do ícone do Play! usados pelo workflow anterior e chama o construtor oficial de APK universal do ARMSX2.
 
-- Workflow de GitHub Actions para baixar o Play! com submódulos, instalar JDK/NDK/CMake, aplicar ajustes de interface para STKSX2 e compilar APK debug e release.
-- O APK debug gerado pelo Gradle normalmente é assinado com a chave debug da compilação e serve para instalação de teste. O APK release pode sair sem assinatura de distribuição.
-- Script que falha explicitamente se não conseguir aplicar o nome STKSX2, em vez de silenciosamente entregar um app com outro nome.
-- Plano documentado para testes de desempenho em aparelhos de baixo custo.
-- Pacote auxiliar de interface para Sketchware Pro. Ele **não** substitui o build nativo do emulador.
+A base do emulador passa a ser **ARMSX2, derivada do PCSX2 para Android ARM64**. Isso é uma troca de núcleo/base de aplicativo, não uma atualização pequena do núcleo Play! anterior. A interface de configurações e o menu durante o jogo serão os que existem na versão upstream do ARMSX2, com os recursos implementados nessa versão. Não é uma cópia exata do NetherSX2 e não se afirma paridade de todas as opções.
 
-## Como compilar automaticamente
+## Compilação automática
 
-1. Crie um repositório no GitHub chamado `STKSX2`.
-2. Extraia o conteúdo deste ZIP e envie **o conteúdo da pasta** para a raiz do repositório, incluindo `.github/workflows/android.yml`.
-3. Abra a aba **Actions** e habilite Actions se o GitHub pedir.
-4. Faça um commit/push para `main` ou `master`, ou abra o workflow **Build STKSX2 Android APK** e escolha **Run workflow**.
-5. Quando terminar com sucesso, abra a execução e baixe o artefato **STKSX2-Android-debug-installable**. O APK estará dentro do ZIP de artefatos do GitHub Actions.
+1. Extraia o conteúdo desta pasta para a raiz do repositório GitHub, mantendo a pasta `.github/workflows/`.
+2. Faça push para `main` ou `master`, ou abra **Actions → Build STKSX2 Android APK (ARMSX2 core) → Run workflow**.
+3. Quando a execução terminar com sucesso, baixe o artefato `STKSX2-Android-universal-debug`.
+4. Dentro do artefato estarão `STKSX2-Android-universal.apk` e `STKSX2-build-info.txt`.
 
-Se falhar, abra a execução em Actions e consulte o primeiro passo vermelho. Não há como confirmar o build até o workflow rodar no GitHub com acesso à internet e aos runners de compilação.
+O APK universal é montado a partir das variantes nativas ARM64 para páginas de memória de 4 KiB e 16 KiB pelo script upstream. O workflow falha se não encontrar ou validar o APK. A compilação ainda precisa rodar nos runners do GitHub para confirmar o resultado; este ZIP não contém um APK pré-compilado.
 
-## Sketchware Pro
+## Identidade e ícone
 
-O arquivo `.swb` fornecido é somente um protótipo auxiliar e não deve ser tratado como um projeto completo/importável garantido para todas as versões do Sketchware Pro. O emulador real usa C++, CMake, Gradle e Android NDK; use GitHub Actions ou Android Studio para esse build.
+- Nome do launcher configurado como `STKSX2`.
+- Identificador Android configurado como `com.stk.stksx2`.
+- O script copia os PNGs de `ic_launcher` do código Play! utilizado pela versão anterior e aponta o manifesto para esses recursos. Ele falha se não encontrar os três tamanhos esperados, em vez de trocar silenciosamente o ícone.
+- Não são alterados os arquivos de código do núcleo, os menus ou as configurações do ARMSX2 pelo script de branding.
 
-## Desempenho e compatibilidade
+**Nota sobre atualização:** como o identificador do pacote muda para `com.stk.stksx2`, o Android pode tratar o APK como um aplicativo separado do APK anterior. Os saves e as configurações não são migrados automaticamente. Faça backup antes de testar.
 
-O alvo é oferecer o melhor desempenho possível em aparelhos com menos de 4 GB de RAM, mas **não é tecnicamente honesto prometer 30 FPS em todos os jogos**. O resultado depende do jogo, CPU, GPU, driver, temperatura e compatibilidade do núcleo. Consulte `docs/LOW_END_OPTIMIZATION.md`; otimizações só devem ser anunciadas após medição em dispositivos reais.
+## Limites importantes
 
-## Licença, jogos e BIOS
+- O ZIP original continha um protótipo `MainActivity.java`, documentação e scripts; não continha o núcleo de emulação completo. O workflow anterior buscava o Play! durante a compilação.
+- O workflow novo baixa o ARMSX2 a partir da branch upstream `master`. Assim, menus e recursos podem mudar conforme o upstream evolui.
+- Não foi possível compilar o APK neste ambiente. A validade final depende da execução completa do GitHub Actions e de testes no dispositivo real.
+- Não é possível prometer FPS específico em todos os jogos. Desempenho depende do jogo, SoC, GPU, driver, temperatura e configurações.
+- Este pacote não implementa automaticamente todos os recursos exclusivos do NetherSX2, não migra saves e não garante equivalência visual com a interface anterior. Recursos adicionais devem ser integrados ao núcleo e testados, não apresentados como simples opções visuais.
 
-O código do núcleo é obtido do projeto upstream Play!: https://github.com/jpd002/Play-. Consulte e preserve a licença, os avisos e as condições atuais desse projeto antes de redistribuir qualquer build. Este repositório não inclui jogos, imagens de disco ou firmware proprietário. O README do Play! informa que ele usa BIOS de alta-level integrada e não aceita BIOS externa: https://github.com/jpd002/Play-/blob/master/README.md.
+## Teste recomendado
 
-## Limitações que continuam abertas
+1. Baixe e instale o APK do artefato.
+2. Teste a abertura, a biblioteca de jogos, os controles na tela, um controle físico, áudio, salvar/carregar e voltar do jogo para o menu.
+3. Teste o jogo que apresentou baixo desempenho no aparelho real e registre FPS, temperatura, travamentos e configuração gráfica.
+4. Se o workflow falhar, abra o log do primeiro passo vermelho em **Actions**; o arquivo `STKSX2-build-info.txt` só será publicado quando a compilação chegar ao estágio de empacotamento.
 
-- O build ainda não foi executado nem validado neste ambiente.
-- O núcleo continua sendo o upstream Play!, não uma implementação STKSX2 original.
-- O pacote não inclui benchmarking por jogo, perfis de otimização próprios testados, testes de compatibilidade ou certificação de estabilidade.
-- O nome do launcher é alterado; o identificador interno do pacote e os nomes internos upstream não são reescritos para evitar quebrar referências Java/JNI.
-- O `.swb` é auxiliar e não compila o núcleo nativo.
+## Licenças
+
+Preserve os avisos e licenças dos projetos upstream. Este repositório não inclui jogos, discos de jogos nem firmware proprietário.
