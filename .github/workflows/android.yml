@@ -1,4 +1,4 @@
-name: Build STKSX2 Android APK
+name: Build STKSX2 Android APK (ARMSX2 core)
 
 on:
   push:
@@ -16,11 +16,12 @@ concurrency:
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
+    name: Build universal ARM64 APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
     env:
       ANDROID_NDK_VERSION: '29.0.14206865'
-      ANDROID_CMAKE_VERSION: '3.31.1'
+      ANDROID_CMAKE_VERSION: '3.31.6'
     steps:
       - name: Checkout STKSX2 wrapper
         uses: actions/checkout@v4
@@ -31,75 +32,87 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # Preserve the Android SDK setup requested for this project.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: |
             platform-tools
 
-      - name: Install upstream-compatible Android NDK and CMake
+      - name: Install Android SDK, NDK and CMake
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}" "cmake;${ANDROID_CMAKE_VERSION}"
+          yes | sdkmanager --install \
+            "platforms;android-37" \
+            "build-tools;37.0.0" \
+            "ndk;${ANDROID_NDK_VERSION}" \
+            "cmake;${ANDROID_CMAKE_VERSION}" >/dev/null || true
+          sdkmanager --list_installed | grep -F "ndk;${ANDROID_NDK_VERSION}"
+          sdkmanager --list_installed | grep -F "cmake;${ANDROID_CMAKE_VERSION}"
+          sdkmanager --list_installed | grep -F 'platforms;android-37'
+          sdkmanager --list_installed | grep -F 'build-tools;37.0.0'
 
-      - name: Fetch Play! source and all submodules
+      - name: Fetch ARMSX2 and its submodules
         shell: bash
         run: |
           set -euo pipefail
-          git clone --recurse-submodules https://github.com/jpd002/Play-.git upstream/Play-
-          git -C upstream/Play- rev-parse HEAD | tee upstream-play-commit.txt
-          git -C upstream/Play- fetch --tags --force
+          git clone --recurse-submodules https://github.com/ARMSX2/ARMSX2.git upstream/ARMSX2
+          git -C upstream/ARMSX2 rev-parse HEAD | tee upstream-armsx2-commit.txt
+          git -C upstream/ARMSX2 submodule status --recursive
 
-      - name: Apply STKSX2 launcher branding
-        run: python3 scripts/brand_upstream.py upstream/Play-
-
-      - name: Build installable debug APK and release APK
-        shell: bash
-        working-directory: upstream/Play-/build_android
-        run: |
-          set -euo pipefail
-          ./gradlew --no-daemon --stacktrace assembleDebug assembleRelease
-
-      - name: Verify installable debug APK and release APK
+      - name: Fetch existing Play! launcher icon assets
         shell: bash
         run: |
           set -euo pipefail
-          DEBUG_APK=$(find upstream/Play-/build_android/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)
-          RELEASE_APK=$(find upstream/Play-/build_android/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)
-          test -n "$DEBUG_APK"
-          test -s "$DEBUG_APK"
-          test -n "$RELEASE_APK"
-          test -s "$RELEASE_APK"
-          echo "Installable debug APK (signed with Android debug key): $DEBUG_APK"
-          echo "Release APK (may be unsigned): $RELEASE_APK"
-          find upstream/Play-/build_android/build/outputs/apk -type f -name '*.apk' -printf '%p (%s bytes)\n'
+          git clone --depth 1 https://github.com/jpd002/Play-.git upstream/Play-icon-source
+          git -C upstream/Play-icon-source rev-parse HEAD | tee upstream-play-icon-commit.txt
 
-      - name: Upload installable debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: STKSX2-Android-debug-installable
-          path: upstream/Play-/build_android/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 30
+      - name: Apply STKSX2 branding and preserve the existing icon
+        run: python3 scripts/brand_armsx2.py upstream/ARMSX2 upstream/Play-icon-source
 
-      - name: Package build information
+      - name: Fetch shaderc dependencies
+        working-directory: upstream/ARMSX2/platforms/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 app/src/main/cpp/3rdparty/shaderc/utils/git-sync-deps
+
+      - name: Install Rust Android target for librashader
+        shell: bash
+        run: rustup target add aarch64-linux-android
+
+      - name: Build and verify universal page-size APK
+        working-directory: upstream/ARMSX2/platforms/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./tools/build-universal-page-apk.sh \
+            "$GITHUB_WORKSPACE/STKSX2-Android-universal.apk" \
+            --application-id com.stk.stksx2
+          test -s "$GITHUB_WORKSPACE/STKSX2-Android-universal.apk"
+          sha256sum "$GITHUB_WORKSPACE/STKSX2-Android-universal.apk"
+
+      - name: Record build provenance
         shell: bash
         run: |
           {
-            echo "STKSX2 build"
+            echo "STKSX2 Android build"
             echo "Wrapper commit: $GITHUB_SHA"
-            echo "Upstream Play! commit: $(cat upstream-play-commit.txt)"
+            echo "ARMSX2 commit: $(cat upstream-armsx2-commit.txt)"
+            echo "Play! icon source commit: $(cat upstream-play-icon-commit.txt)"
             echo "Built at UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-            echo "Note: based on upstream Play!; this is not a PCSX2/AetherSX2 port."
-          } > upstream/Play-/build_android/build-info.txt
+            echo "Core: ARMSX2/PCSX2-derived ARM64 Android emulator"
+            echo "Application ID: com.stk.stksx2"
+            echo "Icon: copied from the Play! source used by the previous STKSX2 workflow"
+          } > STKSX2-build-info.txt
 
-      - name: Upload release APK (unsigned unless separately signed)
+      - name: Upload installable universal APK
         uses: actions/upload-artifact@v4
         with:
-          name: STKSX2-Android-release-unsigned
+          name: STKSX2-Android-universal-debug
           path: |
-            upstream/Play-/build_android/build/outputs/apk/release/*.apk
-            upstream/Play-/build_android/build-info.txt
+            STKSX2-Android-universal.apk
+            STKSX2-build-info.txt
           if-no-files-found: error
           retention-days: 30
