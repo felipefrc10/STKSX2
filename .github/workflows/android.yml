@@ -33,6 +33,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
 
       - name: Install upstream-compatible Android NDK and CMake
         shell: bash
