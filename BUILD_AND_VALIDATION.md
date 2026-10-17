@@ -1,20 +1,30 @@
-# Checklist de validação do STKSX2
+# Checklist de validação do STKSX2 (base ARMSX2)
 
-## CI
+## CI e APK
 
 - [ ] GitHub Actions termina com sucesso no branch principal.
-- [ ] O artefato `STKSX2-Android-debug-installable` contém um APK não vazio.
-- [ ] Instalar o APK em um dispositivo de teste e confirmar que o launcher mostra STKSX2.
-- [ ] Abrir a aplicação, importar um jogo próprio e testar áudio, controles, suspensão/retorno e encerramento.
-- [ ] Confirmar que os jogos e os dados salvos continuam disponíveis após atualizar o APK.
+- [ ] O artefato `STKSX2-Android-universal-debug` contém um APK não vazio.
+- [ ] O APK passa na verificação de assinatura e alinhamento executada pelo script upstream.
+- [ ] O launcher mostra `STKSX2` e mantém os PNGs de ícone copiados do Play! anterior.
+- [ ] Instalar o APK em um dispositivo de teste e abrir a biblioteca.
 
-## Desempenho de aparelhos modestos
+## Funcionalidade
 
-Para cada jogo, registrar modelo do aparelho, Android, SoC/GPU, configuração gráfica, FPS médio, 1% low, travamentos, temperatura e pico de memória. Testar ao menos 20–30 minutos para identificar throttling térmico. Não generalizar resultado de um jogo para todos os títulos.
+- [ ] Importar e abrir um jogo próprio.
+- [ ] Testar controles na tela e controle físico.
+- [ ] Testar áudio, menu durante o jogo, configurações por jogo, salvar/carregar e encerramento.
+- [ ] Confirmar comportamento de arquivos de jogos e saves; não presumir migração automática da versão anterior.
+- [ ] Registrar o jogo, SoC/GPU, Android, backend gráfico, FPS médio, travamentos, temperatura e pico de memória.
 
-## Segurança
+## Segurança e distribuição
 
 - Não incluir chaves de assinatura, senhas ou tokens no repositório.
-- Se uma chave de distribuição for configurada, guardar os dados em GitHub Actions Secrets e nunca em texto no código.
-- Revisar alterações e dependências upstream antes de publicar APKs.
-- Validar permissões Android, armazenamento de saves e tratamento de arquivos importados.
+- O script usa a assinatura de teste criada pelo construtor upstream; não é uma chave de publicação protegida para Play Store.
+- Revisar as alterações e dependências upstream antes de distribuir APKs.
+- Confirmar permissões Android, armazenamento de saves e tratamento de arquivos importados.
+
+## Limites
+
+- O build ainda não foi executado nem validado neste ambiente.
+- O workflow usa a branch `master` do ARMSX2 e pode herdar alterações futuras do upstream.
+- Não afirmar compatibilidade completa com NetherSX2 ou FPS garantido sem testes reais.
