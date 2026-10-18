@@ -109,13 +109,16 @@ s = s.replace(
     1)
 p.write_text(s, encoding="utf-8")
 
---- a/scripts/customize_stksx2.py
-+++ b/scripts/customize_stksx2.py
-@@
-     "about": app / "src/main/java/com/armsx2/ui/about/AboutScreen.kt",
-+    "settings_screen": app / "src/main/java/com/armsx2/ui/settingshub/SettingsScreen.kt",
-     "manifest": app / "src/main/AndroidManifest.xml",
-@@
+# 3b) Show STKSX2 in both global settings and per-game settings headers.
+p = required["settings_screen"]
+s = p.read_text(encoding="utf-8")
+old_title = 'title = scopeGame?.title ?: str("action.settings"),'
+new_title = 'title = if (scopeGame == null) "STKSX2 · ${str("action.settings")}" else "STKSX2 · ${scopeGame.title}",'
+if old_title in s:
+    s = s.replace(old_title, new_title, 1)
+elif new_title not in s:
+    raise SystemExit("Could not locate the settings header title; refusing a blind branding change.")
+p.write_text(s, encoding="utf-8")
 
 -# 4) Bypass the ARMSX2 bundled intro video and open the actual STKSX2 library on launch.
 +# 3b) Show STKSX2 in both global settings and per-game settings headers.
