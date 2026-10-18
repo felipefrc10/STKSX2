@@ -58,6 +58,32 @@ s = s.replace(
     '            ArmsLogo(Modifier.weight(1f))',
     '            Text("STKSX2", modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)',
     1)
+
+# Corrigir a orientação durante a emulação:
+# quando o jogo não tiver orientação explícita, herdar a da biblioteca.
+orientation_old = """        val orientation = if (emulationOwnsOrientation)
+            com.armsx2.config.ConfigStore.resolveForGame(currentGame.value?.settingsKey).output.orientation
+        else
+            com.armsx2.ui.theme.LauncherOrientationPreferences.mode.value"""
+
+orientation_new = """        val orientation = if (emulationOwnsOrientation) {
+            val gameOrientation =
+                com.armsx2.config.ConfigStore.resolveForGame(currentGame.value?.settingsKey).output.orientation
+            if (gameOrientation == 0)
+                com.armsx2.ui.theme.LauncherOrientationPreferences.mode.value
+            else
+                gameOrientation
+        } else
+            com.armsx2.ui.theme.LauncherOrientationPreferences.mode.value"""
+
+if orientation_old not in s:
+    raise SystemExit(
+        "Não foi possível localizar a lógica de orientação; "
+        "a correção precisa ser revisada."
+    )
+
+s = s.replace(orientation_old, orientation_new, 1)
+
 p.write_text(s, encoding="utf-8")
 
 # 3) Rebrand the About screen and repository destination.
