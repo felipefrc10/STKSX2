@@ -59,14 +59,21 @@ s = s.replace(
     '            Text("STKSX2", modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)',
     1)
 
-# Corrigir a orientação durante a emulação:
-# quando o jogo não tiver orientação explícita, herdar a da biblioteca.
-orientation_old = """        val orientation = if (emulationOwnsOrientation)
-            com.armsx2.config.ConfigStore.resolveForGame(currentGame.value?.settingsKey).output.orientation
-        else
-            com.armsx2.ui.theme.LauncherOrientationPreferences.mode.value"""
 
-orientation_new = """        val orientation = if (emulationOwnsOrientation) {
+# Corrigir a orientação durante a emulação.
+# Ler explicitamente o arquivo de runtime, sem reutilizar o texto do menu lateral.
+p = required["runtime"]
+s = p.read_text(encoding="utf-8")
+
+orientation_pattern = re.compile(
+    r'val orientation = if \(emulationOwnsOrientation\)\s+'
+    r'com\.armsx2\.config\.ConfigStore\.resolveForGame'
+    r'\(currentGame\.value\?\.settingsKey\)\.output\.orientation\s+'
+    r'else\s+'
+    r'com\.armsx2\.ui\.theme\.LauncherOrientationPreferences\.mode\.value'
+)
+
+orientation_new = """val orientation = if (emulationOwnsOrientation) {
             val gameOrientation =
                 com.armsx2.config.ConfigStore.resolveForGame(currentGame.value?.settingsKey).output.orientation
             if (gameOrientation == 0)
@@ -76,13 +83,15 @@ orientation_new = """        val orientation = if (emulationOwnsOrientation) {
         } else
             com.armsx2.ui.theme.LauncherOrientationPreferences.mode.value"""
 
-if orientation_old not in s:
-    raise SystemExit(
-        "Não foi possível localizar a lógica de orientação; "
-        "a correção precisa ser revisada."
-    )
+s, orientation_count = orientation_pattern.subn(
+    orientation_new, s, count=1
+)
 
-s = s.replace(orientation_old, orientation_new, 1)
+if orientation_count != 1:
+    raise SystemExit(
+        "Não foi possível localizar a lógica de orientação no runtime. "
+        "Nenhuma alteração de orientação foi gravada."
+    )
 
 p.write_text(s, encoding="utf-8")
 
