@@ -134,6 +134,10 @@ jobs:
       - name: Apply STKSX2 branding and preserve the existing icon
         run: python3 scripts/brand_armsx2.py upstream/ARMSX2 upstream/Play-icon-source
 
+      - name: Customize STKSX2 UI and remove upstream-only features
+        shell: bash
+        run: python3 scripts/customize_stksx2.py upstream/ARMSX2
+        
       - name: Fetch shaderc dependencies
         working-directory: upstream/ARMSX2/platforms/android
         shell: bash
