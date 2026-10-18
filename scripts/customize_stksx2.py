@@ -58,7 +58,9 @@ s = s.replace(
     '            ArmsLogo(Modifier.weight(1f))',
     '            Text("STKSX2", modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)',
     1)
-
+# Persistir as alterações do menu lateral antes de trocar para o arquivo de runtime.
+# Sem esta gravação, as alterações em NavigationDrawer.kt eram descartadas.
+p.write_text(s, encoding="utf-8")
 
 # Corrigir a orientação durante a emulação.
 # Ler explicitamente o arquivo de runtime, sem reutilizar o texto do menu lateral.
