@@ -114,13 +114,33 @@ if n != 1:
     raise SystemExit("Could not disable the upstream in-app updater.")
 p.write_text(s, encoding="utf-8")
 
+
 # Remove sideload-only permission/provider used solely to install upstream updates.
 github_manifest = app / "src/github/AndroidManifest.xml"
 if github_manifest.is_file():
     s = github_manifest.read_text(encoding="utf-8")
-    s = re.sub(r'\s*<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"\s*/>\s*', '\n', s, count=1)
-    s = re.sub(r'\s*<!-- FileProvider that hands the downloaded update APK.*?</provider>\s*', '\n', s, count=1, flags=re.S)
-    github_manifest.write_text(s, encoding="utf-8")
 
-print("STKSX2 customization complete: direct library launch, STKSX2 drawer/About branding, Discord/social drawer entries removed, Discord startup disabled, upstream self-updater disabled.")
-print("The ARMSX2/PCSX2 emulation core and existing functional graphics/audio/control settings were preserved.")
+    # Remove the permission used by the upstream self-updater.
+    s = re.sub(
+        r'\s*<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"\s*/>\s*',
+        '\n', s, count=1
+    )
+
+    # Remove the entire explanatory comment, including its closing marker.
+    s = re.sub(
+        r'\s*<!-- FileProvider that hands the downloaded update APK.*?-->\s*',
+        '\n', s, count=1, flags=re.S
+    )
+
+    # Remove the complete application/provider block.
+    s, provider_count = re.subn(
+        r'\s*<application>\s*<provider\b.*?</provider>\s*</application>\s*',
+        '\n', s, count=1, flags=re.S
+    )
+
+    if provider_count != 1:
+        raise SystemExit(
+            "Could not safely remove the GitHub update FileProvider block."
+        )
+
+    github_manifest.write_text(s, encoding="utf-8")
