@@ -137,6 +137,10 @@ jobs:
       - name: Customize STKSX2 UI and remove upstream-only features
         shell: bash
         run: python3 scripts/customize_stksx2.py upstream/ARMSX2
+
+      - name: Rebrand first-run setup screen as STKSX2
+        shell: bash
+        run: python3 scripts/customize_stksx2_onboarding.py upstream/ARMSX2
         
       - name: Fetch shaderc dependencies
         working-directory: upstream/ARMSX2/platforms/android
